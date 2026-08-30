@@ -9,6 +9,15 @@
 > at runtime. `tiny11Coremaker.ps1` remains upstream code and is not covered by
 > these reliability changes.
 
+## Fleet deployment branch
+
+Branch `deployment/2024-template` is the controlled x64 deployment lane. It
+preserves the serviceable intent of the archived May 2024 template while using
+the hardened builder and corrected answer file. It does not reuse the old
+script or any historical ISO. Follow the
+[Tiny11 Universal Build and Recovery Playbook](docs/tiny11-build-playbook.md)
+and pin an exact deployment commit for every build.
+
 ## Introduction :
 Tiny11 builder, now completely overhauled. <br> After more than a year (for which I am so sorry) of no updates, tiny11 builder is now a much more complete and flexible solution - one script fits all. Also, it is a steppingstone for an even more fleshed-out solution.
 
