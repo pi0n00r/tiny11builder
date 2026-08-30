@@ -1,16 +1,24 @@
 # tiny11builder
 *Scripts to build a trimmed-down Windows 11 image - now in **PowerShell**!*
 
+> [!IMPORTANT]
+> This fork hardens the regular builder for reproducible use. It requires
+> explicit source and scratch volumes, a reviewed local answer file, and a
+> Microsoft-signed `oscdimg.exe`. Native command failures terminate the build,
+> failed-build evidence is retained, and no mutable build input is downloaded
+> at runtime. `tiny11Coremaker.ps1` remains upstream code and is not covered by
+> these reliability changes.
+
 ## Introduction :
 Tiny11 builder, now completely overhauled. <br> After more than a year (for which I am so sorry) of no updates, tiny11 builder is now a much more complete and flexible solution - one script fits all. Also, it is a steppingstone for an even more fleshed-out solution.
 
-You can now use it on ANY Windows 11 release (not just a specific build), as well as ANY language or architecture.
+You can use it on Windows 11 releases and languages supported by the source media. The included `autounattend.xml` is for `amd64`; an ARM64 build requires a separately reviewed answer file whose architecture declarations are all `arm64`.
 This is made possible thanks to the much-improved scripting capabilities of PowerShell, compared to the older Batch release.
 
 This is a script created to automate the build of a streamlined Windows 11 image, similar to tiny10.
 The script has also been updated to use DISM's recovery compression, resulting in a much smaller final ISO size, and no utilities from external sources. The only other executable included is **oscdimg.exe**, which is provided in the Windows ADK and it is used to create bootable ISO images. 
 Also included is an unattended answer file, which is used to bypass the Microsoft Account on OOBE and to deploy the image with the `/compact` flag.
-It's open-source, **so feel free to add or remove anything you want!** Feedback is also much appreciated.
+The source is publicly available for inspection. See [License status](#license-status) before redistributing or modifying inherited code.
 
 Also, for the very first time, **introducing tiny11 core builder**! A more powerful script, designed for a quick and dirty development testbed. Just the bare minimum, none of the fluff. 
 This script generates a significantly reduced Windows 11 image. However, **it's not suitable for regular use due to its lack of serviceability - you can't add languages, updates, or features post-creation**. tiny11 Core is not a full Windows 11 substitute but a rapid testing or development tool, potentially useful for VM environments.
@@ -22,25 +30,27 @@ This script generates a significantly reduced Windows 11 image. However, **it's 
 - ⚠️ **tiny11coremaker.ps1** : The core script, which removes even more bloat but also removes the ability to service the image. You cannot add languages, updates, or features post-creation. This is recommended for quick testing or development use.
 
 ## Instructions:
-1. Download Windows 11 from the [Microsoft website](https://www.microsoft.com/software-download/windows11) or [Rufus](https://github.com/pbatard/rufus)
-2. Mount the downloaded ISO image using Windows Explorer.
-3. Open **PowerShell 5.1** as Administrator. 
-5. Change the script execution policy :
+1. Download Windows 11 from the [Microsoft website](https://www.microsoft.com/software-download/windows11) or [Rufus](https://github.com/pbatard/rufus), then record and verify its provenance.
+2. Install the Windows ADK Deployment Tools, or place a reviewed Microsoft-signed `oscdimg.exe` beside the script.
+3. Review the local `autounattend.xml`. Do not add a product key; the builder rejects a populated key.
+4. Mount the source ISO using Windows Explorer.
+5. Prepare a different fixed local volume with at least 40 GiB free for scratch. The builder rejects a source and scratch drive using the same letter.
+6. Open **Windows PowerShell 5.1** as Administrator.
+7. If the current policy blocks the script, change it for this process only:
 ```powershell
 Set-ExecutionPolicy Bypass -Scope Process
 ```
-> Using `-Scope Process` you keep your original policy intact as this change only lasts for the current PowerShell session. 
+This leaves the persistent execution policy unchanged.
 
-6. Start the script :
+8. Start the regular builder with explicit source and scratch drive letters:
 ```powershell
-C:/path/to/your/tiny11/script.ps1 -ISO <letter> -SCRATCH <letter>
-``` 
-> You can see of the script by running the `get-help` command.
+& 'C:\path\to\tiny11builder\tiny11maker.ps1' -ISO E -SCRATCH D -ImageIndex 6 -OutputPath 'C:\Builds\tiny11.iso'
+```
+Omit `-ImageIndex` only when an interactive image selection is intended. The output path must not already exist.
 
-6. Select the drive letter where the image is mounted (only the letter, no colon (:))
-7. Select the SKU that you want the image to be based.
-8. Sit back and relax :)
-9. When the image is completed, you will see it in the folder where the script was extracted, with the name tiny11.iso
+9. Retain the transcript written beside the script and verify the resulting ISO before deployment. On failure, reconcile the retained `tiny11` and `scratchdir` directories on the scratch volume before retrying.
+
+Run `Get-Help .\tiny11maker.ps1 -Full` for parameter details.
 
 ---
 
@@ -93,7 +103,7 @@ C:/path/to/your/tiny11/script.ps1 -ISO <letter> -SCRATCH <letter>
 </table>
 
 Keep in mind that **you cannot add back features in tiny11 core**! <br>
-You will be asked during image creation if you want to enable .net 3.5 support!
+The Core builder asks whether to enable .NET Framework 3.5 because it cannot be added after image creation.
 
 ---
 
@@ -101,7 +111,18 @@ You will be asked during image creation if you want to enable .net 3.5 support!
 - Although Edge is removed, there are some remnants in the Settings, but the app in itself is deleted. 
 - You might have to update Winget before being able to install any apps, using Microsoft Store.
 - Outlook and Dev Home might reappear after some time. This is an ongoing battle, though the latest script update tries to prevent this more aggressively.
-- If you are using this script on arm64, you might see a glimpse of an error while running the script. This is caused by the fact that the arm64 image doesn't have OneDriveSetup.exe included in the System32 folder.
+
+## Build safety
+
+- Use only official Windows source media with recorded provenance.
+- Never build from a network share or use a network share as scratch.
+- Do not edit or replace source, answer-file, or ADK inputs during a build.
+- Do not reuse a failed scratch tree. Preserve it for diagnosis, then remove it deliberately before a clean retry.
+- Treat ISO creation as the start of qualification, not proof of a deployable image. Boot and install it in a disposable VM, verify servicing and Windows Update, then capture hashes and build evidence.
+
+## License status
+
+The upstream repository currently provides no software license. This fork does not relicense inherited code and does not add an AGPL notice. Default copyright rules continue to apply unless the upstream copyright holder publishes a compatible license or grants explicit permission.
 
 ---
 
