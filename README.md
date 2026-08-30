@@ -11,11 +11,13 @@
 
 ## Fleet deployment branch
 
-Branch `deployment/2024-template` is the controlled x64 deployment lane. It
-preserves the serviceable intent of the archived May 2024 template while using
-the hardened builder and corrected answer file. It does not reuse the old
-script or any historical ISO. Follow the
-[Tiny11 Universal Build and Recovery Playbook](docs/tiny11-build-playbook.md)
+Branch `deployment/2026-25h2` is the controlled general-purpose x64 deployment
+lane. It accepts only Windows 11 25H2 build `26200.x`, preserves Edge and
+WebView2, and applies the three reviewed NVMe feature overrides. It carries
+forward only current, confirmed removals from the archived May 2024 template;
+it does not reuse the old script or any historical ISO. Review the
+[Windows 11 25H2 Deployment Profile](docs/deployment-2026-25h2.md), follow the
+[Tiny11 Universal Build and Recovery Playbook](docs/tiny11-build-playbook.md),
 and pin an exact deployment commit for every build.
 
 ## Introduction :
@@ -81,20 +83,17 @@ Run `Get-Help .\tiny11maker.ps1 -Full` for parameter details.
           <li>GetStarted</li>
           <li>Office Hub</li>
           <li>Solitaire</li>
-          <li>PeopleApp</li>
+          <li>Copilot</li>
           <li>PowerAutomate</li>
           <li>ToDo</li>
           <li>Alarms</li>
-          <li>Mail and Calendar</li>
+          <li>New Outlook</li>
+          <li>New Teams</li>
           <li>Feedback Hub</li>
-          <li>Maps</li>
           <li>Sound Recorder</li>
           <li>Your Phone</li>
           <li>Media Player</li>
           <li>QuickAssist</li>
-          <li>Internet Explorer</li>
-          <li>Tablet PC Math</li>
-          <li>Edge</li>
           <li>OneDrive</li>
         </ul>
       </td>
@@ -117,9 +116,13 @@ The Core builder asks whether to enable .NET Framework 3.5 because it cannot be 
 ---
 
 ## Known issues:
-- Although Edge is removed, there are some remnants in the Settings, but the app in itself is deleted. 
+- The fleet deployment profile deliberately preserves Edge and WebView2 for
+  supported application and CRA/TurboTax compatibility.
+- The fleet deployment profile rejects source media outside x64 Windows 11
+  25H2 build `26200.x`.
 - You might have to update Winget before being able to install any apps, using Microsoft Store.
-- Outlook and Dev Home might reappear after some time. This is an ongoing battle, though the latest script update tries to prevent this more aggressively.
+- Windows feature updates can reprovision consumer apps. Re-run the package
+  inventory after servicing and qualify the updated state before promotion.
 
 ## Build safety
 

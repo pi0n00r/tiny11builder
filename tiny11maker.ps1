@@ -3,10 +3,12 @@
     Builds a serviceable, trimmed Windows 11 installation image.
 
 .DESCRIPTION
-    This hardened variant keeps tiny11builder's regular removal policy while
-    making inputs deterministic and critical failures terminating. It requires
-    a local answer file and a signed oscdimg.exe from the Windows ADK or the
-    script directory. It never downloads mutable build inputs at runtime.
+    This hardened deployment profile builds a general-purpose Windows 11 25H2
+    x64 image. It preserves Edge and WebView2 for application compatibility,
+    applies the fleet NVMe feature overrides, and makes inputs deterministic
+    and critical failures terminating. It requires a local answer file and a
+    signed oscdimg.exe from the Windows ADK or the script directory. It never
+    downloads mutable build inputs at runtime.
 
 .PARAMETER ISO
     Drive letter of the mounted Windows 11 source ISO, without a colon.
@@ -26,6 +28,7 @@
 .NOTES
     Upstream: https://github.com/ntdevlabs/tiny11builder
     Reliability hardening: 2026-08-30
+    Deployment profile: deployment/2026-25h2
 #>
 
 [CmdletBinding()]
@@ -186,6 +189,25 @@ function Dismount-OfflineRegistrySet {
     foreach ($name in @('zSYSTEM', 'zSOFTWARE', 'zNTUSER', 'zDEFAULT', 'zCOMPONENTS')) {
         Dismount-OfflineRegistryHive -Name $name
     }
+}
+
+function Get-OfflineDefaultControlSetName {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param ()
+
+    $selectPath = 'Registry::HKEY_LOCAL_MACHINE\zSYSTEM\Select'
+    $defaultControlSet = [int](Get-ItemProperty -LiteralPath $selectPath -Name 'Default').Default
+    if ($defaultControlSet -lt 1 -or $defaultControlSet -gt 999) {
+        throw "Offline SYSTEM hive has an invalid default control set: $defaultControlSet"
+    }
+
+    $controlSetName = 'ControlSet{0:D3}' -f $defaultControlSet
+    $controlSetPath = "Registry::HKEY_LOCAL_MACHINE\zSYSTEM\$controlSetName"
+    if (-not (Test-Path -LiteralPath $controlSetPath)) {
+        throw "Offline SYSTEM hive default control set is absent: $controlSetName"
+    }
+    return $controlSetName
 }
 
 function Remove-OptionalPath {
@@ -410,6 +432,13 @@ try {
     $imageMetadata = Get-WindowsImage -ImagePath $installWim -Index $workingImageIndex
     $architecture = Get-ImageArchitecture -Image $imageMetadata
     Write-Output "Image: $($imageMetadata.ImageName); architecture: $architecture; version: $($imageMetadata.Version)"
+    $imageVersion = [version]$imageMetadata.Version
+    if ($architecture -ne 'amd64') {
+        throw "The deployment/2026-25h2 profile is qualified only for x64 media; found $architecture."
+    }
+    if ($imageVersion.Major -ne 10 -or $imageVersion.Minor -ne 0 -or $imageVersion.Build -ne 26200) {
+        throw "The deployment/2026-25h2 profile requires Windows 11 25H2 build 26200.x; found $imageVersion."
+    }
     Assert-AnswerFile -Path $AnswerFilePath -Architecture $architecture
 
     $efiMarker = if ($architecture -eq 'amd64') { 'efi\boot\bootx64.efi' } else { 'efi\boot\bootaa64.efi' }
@@ -435,48 +464,26 @@ try {
             if ($_ -match 'PackageName : (.*)') { $matches[1] }
         }
     )
+    Write-Output 'Provisioned package inventory before removal:'
+    $packages | Sort-Object | ForEach-Object { Write-Output "  $_" }
+
     $packagePrefixes = @(
-        'AppUp.IntelManagementandSecurityStatus',
         'Clipchamp.Clipchamp',
-        'DolbyLaboratories.DolbyAccess',
-        'DolbyLaboratories.DolbyDigitalPlusDecoderOEM',
         'Microsoft.BingNews',
-        'Microsoft.BingSearch',
         'Microsoft.BingWeather',
         'Microsoft.Copilot',
-        'Microsoft.Windows.CrossDevice',
         'Microsoft.GamingApp',
         'Microsoft.GetHelp',
         'Microsoft.Getstarted',
-        'Microsoft.Microsoft3DViewer',
         'Microsoft.MicrosoftOfficeHub',
         'Microsoft.MicrosoftSolitaireCollection',
-        'Microsoft.MicrosoftStickyNotes',
-        'Microsoft.MixedReality.Portal',
-        'Microsoft.MSPaint',
-        'Microsoft.Office.OneNote',
-        'Microsoft.OfficePushNotificationUtility',
         'Microsoft.OutlookForWindows',
-        'Microsoft.Paint',
-        'Microsoft.People',
         'Microsoft.PowerAutomateDesktop',
-        'Microsoft.SkypeApp',
-        'Microsoft.StartExperiencesApp',
         'Microsoft.Todos',
-        'Microsoft.Wallet',
-        'Microsoft.Windows.DevHome',
-        'Microsoft.Windows.Copilot',
-        'Microsoft.Windows.Teams',
         'Microsoft.WindowsAlarms',
-        'Microsoft.WindowsCamera',
-        'microsoft.windowscommunicationsapps',
         'Microsoft.WindowsFeedbackHub',
-        'Microsoft.WindowsMaps',
         'Microsoft.WindowsSoundRecorder',
-        'Microsoft.WindowsTerminal',
         'Microsoft.Xbox.TCUI',
-        'Microsoft.XboxApp',
-        'Microsoft.XboxGameOverlay',
         'Microsoft.XboxGamingOverlay',
         'Microsoft.XboxIdentityProvider',
         'Microsoft.XboxSpeechToTextOverlay',
@@ -485,10 +492,30 @@ try {
         'Microsoft.ZuneVideo',
         'MicrosoftCorporationII.MicrosoftFamily',
         'MicrosoftCorporationII.QuickAssist',
-        'MSTeams',
-        'MicrosoftTeams',
-        'Microsoft.549981C3F5F10'
+        'MSTeams'
     )
+    $protectedPackagePrefixes = @(
+        'Microsoft.DesktopAppInstaller',
+        'Microsoft.MicrosoftStickyNotes',
+        'Microsoft.Paint',
+        'Microsoft.ScreenSketch',
+        'Microsoft.SecHealthUI',
+        'Microsoft.StartExperiencesApp',
+        'Microsoft.StorePurchaseApp',
+        'Microsoft.Windows.Photos',
+        'Microsoft.WindowsCalculator',
+        'Microsoft.WindowsCamera',
+        'Microsoft.WindowsNotepad',
+        'Microsoft.WindowsStore',
+        'Microsoft.WindowsTerminal',
+        'MicrosoftWindows.Client.WebExperience',
+        'MicrosoftWindows.CrossDevice'
+    )
+
+    $protectedRemovalOverlap = @($packagePrefixes | Where-Object { $protectedPackagePrefixes -contains $_ })
+    if ($protectedRemovalOverlap.Count -gt 0) {
+        throw "Removal policy intersects the protected package list: $($protectedRemovalOverlap -join ', ')"
+    }
 
     $packagesToRemove = @(
         $packages | Where-Object {
@@ -503,19 +530,15 @@ try {
         ) | Out-Null
     }
 
-    foreach ($edgePath in @(
+    $requiredWebPaths = @(
         (Join-Path $MountPath 'Program Files (x86)\Microsoft\Edge'),
-        (Join-Path $MountPath 'Program Files (x86)\Microsoft\EdgeUpdate'),
-        (Join-Path $MountPath 'Program Files (x86)\Microsoft\EdgeCore')
-    )) {
-        Remove-OptionalPath -Path $edgePath -Recurse
-    }
-
-    $webViewPath = Join-Path $MountPath 'Windows\System32\Microsoft-Edge-Webview'
-    if (Test-Path -LiteralPath $webViewPath) {
-        Invoke-NativeCommand -FilePath 'takeown.exe' -ArgumentList @('/F', $webViewPath, '/R') | Out-Null
-        Invoke-NativeCommand -FilePath 'icacls.exe' -ArgumentList @($webViewPath, '/grant', "$($adminGroup.Value):(F)", '/T', '/C') | Out-Null
-        Remove-OptionalPath -Path $webViewPath -Recurse
+        (Join-Path $MountPath 'Windows\System32\Microsoft-Edge-Webview')
+    )
+    foreach ($requiredWebPath in $requiredWebPaths) {
+        if (-not (Test-Path -LiteralPath $requiredWebPath)) {
+            throw "Required Edge/WebView2 component is absent from the source image: $requiredWebPath"
+        }
+        Write-Output "Preserving required web component: $requiredWebPath"
     }
 
     $oneDrivePath = Join-Path $MountPath 'Windows\System32\OneDriveSetup.exe'
@@ -527,6 +550,8 @@ try {
 
     Write-Output 'Loading offline registry hives...'
     Import-OfflineRegistrySet -ImagePath $MountPath
+    $offlineControlSetName = Get-OfflineDefaultControlSetName
+    Write-Output "Offline default control set: $offlineControlSetName"
 
     Write-OfflineRegistryValue -Path 'HKLM\zDEFAULT\Control Panel\UnsupportedHardwareNotificationCache' -Name 'SV1' -Type 'REG_DWORD' -Value '0'
     Write-OfflineRegistryValue -Path 'HKLM\zDEFAULT\Control Panel\UnsupportedHardwareNotificationCache' -Name 'SV2' -Type 'REG_DWORD' -Value '0'
@@ -563,12 +588,15 @@ try {
     Write-OfflineRegistryValue -Path 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\OOBE' -Name 'BypassNRO' -Type 'REG_DWORD' -Value '1'
     Copy-Item -LiteralPath $AnswerFilePath -Destination (Join-Path $MountPath 'Windows\System32\Sysprep\autounattend.xml') -Force
     Write-OfflineRegistryValue -Path 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\ReserveManager' -Name 'ShippedWithReserves' -Type 'REG_DWORD' -Value '0'
-    Write-OfflineRegistryValue -Path 'HKLM\zSYSTEM\ControlSet001\Control\BitLocker' -Name 'PreventDeviceEncryption' -Type 'REG_DWORD' -Value '1'
+    Write-OfflineRegistryValue -Path "HKLM\zSYSTEM\$offlineControlSetName\Control\BitLocker" -Name 'PreventDeviceEncryption' -Type 'REG_DWORD' -Value '1'
     Write-OfflineRegistryValue -Path 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\Windows Chat' -Name 'ChatIcon' -Type 'REG_DWORD' -Value '3'
     Write-OfflineRegistryValue -Path 'HKLM\zNTUSER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name 'TaskbarMn' -Type 'REG_DWORD' -Value '0'
-    Remove-OfflineRegistryKey -Path 'HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge'
-    Remove-OfflineRegistryKey -Path 'HKEY_LOCAL_MACHINE\zSOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Edge Update'
     Write-OfflineRegistryValue -Path 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\OneDrive' -Name 'DisableFileSyncNGSC' -Type 'REG_DWORD' -Value '1'
+
+    $nvmeOverridePath = "HKLM\zSYSTEM\$offlineControlSetName\Policies\Microsoft\FeatureManagement\Overrides"
+    foreach ($nvmeOverrideId in @('735209102', '1853569164', '156965516')) {
+        Write-OfflineRegistryValue -Path $nvmeOverridePath -Name $nvmeOverrideId -Type 'REG_DWORD' -Value '1'
+    }
 
     Write-OfflineRegistryValue -Path 'HKLM\zNTUSER\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo' -Name 'Enabled' -Type 'REG_DWORD' -Value '0'
     Write-OfflineRegistryValue -Path 'HKLM\zNTUSER\Software\Microsoft\Windows\CurrentVersion\Privacy' -Name 'TailoredExperiencesWithDiagnosticDataEnabled' -Type 'REG_DWORD' -Value '0'
@@ -579,7 +607,7 @@ try {
     Write-OfflineRegistryValue -Path 'HKLM\zNTUSER\Software\Microsoft\InputPersonalization\TrainedDataStore' -Name 'HarvestContacts' -Type 'REG_DWORD' -Value '0'
     Write-OfflineRegistryValue -Path 'HKLM\zNTUSER\Software\Microsoft\Personalization\Settings' -Name 'AcceptedPrivacyPolicy' -Type 'REG_DWORD' -Value '0'
     Write-OfflineRegistryValue -Path 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\DataCollection' -Name 'AllowTelemetry' -Type 'REG_DWORD' -Value '0'
-    Write-OfflineRegistryValue -Path 'HKLM\zSYSTEM\ControlSet001\Services\dmwappushservice' -Name 'Start' -Type 'REG_DWORD' -Value '4'
+    Write-OfflineRegistryValue -Path "HKLM\zSYSTEM\$offlineControlSetName\Services\dmwappushservice" -Name 'Start' -Type 'REG_DWORD' -Value '4'
 
     Write-OfflineRegistryValue -Path 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\UScheduler_Oobe\OutlookUpdate' -Name 'workCompleted' -Type 'REG_DWORD' -Value '1'
     Write-OfflineRegistryValue -Path 'HKLM\zSOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Orchestrator\UScheduler\OutlookUpdate' -Name 'workCompleted' -Type 'REG_DWORD' -Value '1'

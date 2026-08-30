@@ -17,7 +17,7 @@ been proven. It contains no credentials, product keys, or recovery secrets.
 2. Download Windows only from Microsoft. Record the source URL, retrieval time,
    published hash when available, and locally computed SHA-256.
 3. Use `https://github.com/pi0n00r/tiny11builder`, branch
-   `deployment/2024-template`, pinned to an explicit commit. Never build from a
+   `deployment/2026-25h2`, pinned to an explicit commit. Never build from a
    mutable branch tip or an unversioned ZIP.
 4. Determine release, edition, locale, and architecture from mounted-media
    contents. A filename is not evidence.
@@ -134,7 +134,9 @@ Get-WindowsImage -ImagePath $InstallImage |
 
 5. Record the ISO volume label, EFI marker, image index, image name, reported
    architecture, build/version, and locale in the receipt.
-6. Dismount the source after inspection:
+6. For this deployment profile, require x64 Windows 11 25H2 version
+   `10.0.26200.x`. Reject another build family even if its filename says 25H2.
+7. Dismount the source after inspection:
 
 ```powershell
 Dismount-DiskImage -ImagePath $SourceIso
@@ -147,15 +149,16 @@ content-derived facts are recorded.
 
 1. Use the fleet fork only:
    `https://github.com/pi0n00r/tiny11builder`.
-2. Fetch branch `deployment/2024-template`, resolve its commit, and check out
+2. Fetch branch `deployment/2026-25h2`, resolve its commit, and check out
    that detached commit. Record the branch, commit, archive URL when used, and
    archive SHA-256. A branch name by itself is not a pin.
 3. Verify that the pinned commit descends from hardened baseline commit
    `b87486a608805fd8e58e0c734b0576d0ea429c4d`.
 4. Keep one pristine checkout or commit archive and make a separate disposable
    run copy.
-5. Hash at least `tiny11maker.ps1`, `autounattend.xml`, the static test, and the
-   commit archive when an archive is used.
+5. Read `docs/deployment-2026-25h2.md`. Hash at least `tiny11maker.ps1`,
+   `autounattend.xml`, the profile document, the static test, and the commit
+   archive when an archive is used.
 6. Run the repository static checks before building:
 
 ```powershell
@@ -295,6 +298,11 @@ The VM pass requires:
 7. At least two cold boots and one shutdown/start cycle complete normally.
 8. Event Viewer shows no unresolved boot-critical, storage-critical, or
    servicing-critical failure introduced by the image.
+9. Edge, Edge Update, and WebView2 remain installed and serviced.
+10. Microsoft Store, Desktop App Installer, Windows Terminal, Windows Security,
+    and the other protected packages remain present.
+11. The three NVMe feature overrides read back as `REG_DWORD 1` from the live
+    `CurrentControlSet`.
 
 Any failure creates a rejected build receipt. Do not repair the only copy in
 place; fix the input or documented profile and generate a new build ID.
@@ -313,11 +321,18 @@ pnputil /add-driver D:\DriverExport\*.inf /subdirs /install
 ```
 
 4. Apply Windows updates, then capture the exact driver and firmware state.
-5. Run target-specific acceptance separately. The base-image pass is not a
+5. Read back the active NVMe controller, provider, driver version, INF, binary,
+   Device Manager status, and all three feature overrides. The registry values
+   are not substitutes for a healthy controller readback.
+6. Run target-specific acceptance separately. The base-image pass is not a
    workload pass.
-6. Prove normal boot, reboot, shutdown/start, networking, power management,
+7. For the CRA workload, verify current Edge and WebView2, .NET 4.x, TurboTax
+   Business Incorporated install/activation/update, and the CRA filing launch
+   path. Record the first legitimate T2 transmission as workload evidence; do
+   not submit a fabricated return for testing.
+8. Prove normal boot, reboot, shutdown/start, networking, power management,
    remote administration, backup, and recovery.
-7. Promote the receipt from `candidate` to `qualified`, then to `lkg` only after
+9. Promote the receipt from `candidate` to `qualified`, then to `lkg` only after
    the agreed soak period and workload acceptance are green.
 
 ## 11. Receipt schema
@@ -345,7 +360,7 @@ source:
   efi_marker: null
 builder:
   repository: https://github.com/pi0n00r/tiny11builder
-  branch: deployment/2024-template
+  branch: deployment/2026-25h2
   commit: null
   hardened_baseline: b87486a608805fd8e58e0c734b0576d0ea429c4d
   upstream_baseline: 00e7d8a151a39ccffccab4a267bb81fb3756a01d
@@ -357,11 +372,17 @@ builder:
   psscriptanalyzer_version: 1.25.0
   adk_version: null
 profile:
+  id: deployment/2026-25h2
   script: tiny11maker.ps1
   serviceable: true
   architecture: amd64
+  source_build_family: 26200
   scratch_is_local: true
   image_index_explicit: true
+  package_inventory_captured: false
+  edge_preserved: false
+  webview2_preserved: false
+  nvme_feature_overrides: false
   custom_commit: null
 drivers:
   bundle_sha256: null
@@ -377,6 +398,8 @@ evidence:
   target_install: false
   cold_boots: 0
   workload_acceptance: false
+  turbotax_incorporated: false
+  cra_t2_transmission: pending_real_submission
 notes: null
 ```
 
@@ -402,8 +425,8 @@ target soak and the recovery image has been verified.
 
 ## 13. Deployment profile lineage
 
-Branch `deployment/2024-template` carries forward only the recoverable intent of
-the May 2024 template:
+Branch `deployment/2026-25h2` carries forward only the recoverable intent of the
+May 2024 template:
 
 - regular, serviceable tiny11 rather than tiny11 Core;
 - x64 (`amd64`) media and answer-file components;
@@ -412,6 +435,11 @@ the May 2024 template:
 - no embedded product key, credentials, hostnames, or network literals;
 - no driver injection unless a setup-critical need is proven;
 - edition and image index selected explicitly from the current Microsoft source.
+
+The branch is general-purpose rather than accounts-specific. Its exact 25H2
+package policy, preserved components, discontinued identifiers, CRA/TurboTax
+gate, and NVMe settings are authoritative in
+`docs/deployment-2026-25h2.md`.
 
 Evidence baseline:
 
@@ -422,10 +450,11 @@ Archived tiny11maker.ps1 SHA-256: e3cb91f2c81509c4ae650d3afc0fec4ea9151a0e95aa2d
 Archived autounattend.xml SHA-256: ed9837ab4a19c812d28e20f5278ca5bb25815a6a01d1caddbce157be5d519dba
 ```
 
-The deployment branch does not carry forward the old script, unchecked native
-commands, runtime downloads, self-elevation, persistent execution-policy
-changes, destructive failure cleanup, malformed answer-file component
-placement, obsolete source media, or historical output ISOs.
+The deployment branch does not carry forward the old script, physical Edge or
+WebView deletion, stale package identifiers, unchecked native commands, runtime
+downloads, self-elevation, persistent execution-policy changes, destructive
+failure cleanup, malformed answer-file component placement, obsolete source
+media, or historical output ISOs.
 
 ## 14. Current historical inventory
 
@@ -501,6 +530,9 @@ fleet commit.
 - Do not overwrite an ISO, script, answer file, manifest, or receipt.
 - Do not perform an unrecorded manual edit and call the result reproducible.
 - Do not inject every driver merely because a driver export exists.
+- Do not remove Edge, Edge Update, WebView2, or their servicing registrations.
+- Do not translate a live `CurrentControlSet` registry path into a hard-coded
+  offline `ControlSet001`; resolve `SYSTEM\Select\Default`.
 - Do not treat a bootable ISO, completed setup, or one successful reboot as LKG.
 - Do not wipe the target before recovery and VM gates pass.
 - Do not retain stale instructions that contradict the final qualified receipt.
