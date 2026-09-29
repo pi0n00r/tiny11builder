@@ -3,7 +3,7 @@
     Builds a serviceable, trimmed Windows 11 installation image.
 
 .DESCRIPTION
-    This hardened deployment profile builds a general-purpose Windows 11 25H2
+    This hardened deployment profile builds a general-purpose Windows 11 26H2
     x64 image. It preserves Edge and WebView2 for application compatibility,
     applies the fleet NVMe feature overrides, and makes inputs deterministic
     and critical failures terminating. It requires a local answer file and a
@@ -28,7 +28,7 @@
 .NOTES
     Upstream: https://github.com/ntdevlabs/tiny11builder
     Reliability hardening: 2026-08-30
-    Deployment profile: deployment/2026-25h2
+    Deployment profile: deployment/2026-26h2
 #>
 
 [CmdletBinding()]
@@ -67,6 +67,7 @@ $script:LoadedHives = @()
 $script:MountedImagePath = $null
 $script:TranscriptStarted = $false
 $script:BuildSucceeded = $false
+$script:SourceImageIndex = $null
 
 function Invoke-NativeCommand {
     [CmdletBinding()]
@@ -347,9 +348,27 @@ function Assert-Preflight {
         -not (Test-Path -LiteralPath "$SourceDrive\sources\install.esd")) {
         throw "The source media has no sources\install.wim or install.esd: $SourceDrive"
     }
+    $sourceImagePath = @(
+        "$SourceDrive\sources\install.wim",
+        "$SourceDrive\sources\install.esd"
+    ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    $script:SourceImageIndex = Select-WindowsImageIndex -ImagePath $sourceImagePath -RequestedIndex $ImageIndex
+    $sourceImage = Get-WindowsImage -ImagePath $sourceImagePath -Index $script:SourceImageIndex
+    $sourceArchitecture = Get-ImageArchitecture -Image $sourceImage
+    $sourceVersion = [version]$sourceImage.Version
+    if ($sourceArchitecture -ne 'amd64' -or $sourceVersion.Major -ne 10 -or
+        $sourceVersion.Minor -ne 0 -or $sourceVersion.Build -ne 26300 -or
+        $sourceImage.ImageName -ne 'Windows 11 Pro') {
+        throw "The deployment/2026-26h2 profile requires Windows 11 Pro x64 build 26300.x; found '$($sourceImage.ImageName)' $sourceArchitecture $sourceVersion."
+    }
+    if (-not (Test-Path -LiteralPath "$SourceDrive\efi\boot\bootx64.efi") -or
+        (Test-Path -LiteralPath "$SourceDrive\efi\boot\bootaa64.efi")) {
+        throw 'Source EFI markers do not identify unambiguous x64 media.'
+    }
     if (-not (Test-Path -LiteralPath $AnswerFilePath)) {
         throw "Place the reviewed autounattend.xml beside this script: $AnswerFilePath"
     }
+    Assert-AnswerFile -Path $AnswerFilePath -Architecture $sourceArchitecture
     if (Test-Path -LiteralPath $WorkPath) {
         throw "Existing work directory must be reconciled first: $WorkPath"
     }
@@ -407,7 +426,7 @@ try {
     $copiedEsd = Join-Path $WorkPath 'sources\install.esd'
     $installWim = Join-Path $WorkPath 'sources\install.wim'
     if (Test-Path -LiteralPath $copiedEsd) {
-        $sourceIndex = Select-WindowsImageIndex -ImagePath $copiedEsd -RequestedIndex $ImageIndex
+        $sourceIndex = $script:SourceImageIndex
         Write-Output "Converting source ESD image index $sourceIndex to WIM..."
         Export-WindowsImage -SourceImagePath $copiedEsd -SourceIndex $sourceIndex -DestinationImagePath $installWim -CompressionType Maximum -CheckIntegrity
         if (-not (Test-Path -LiteralPath $installWim)) {
@@ -416,7 +435,7 @@ try {
         Remove-Item -LiteralPath $copiedEsd -Force
         $workingImageIndex = 1
     } else {
-        $workingImageIndex = Select-WindowsImageIndex -ImagePath $installWim -RequestedIndex $ImageIndex
+        $workingImageIndex = $script:SourceImageIndex
     }
 
     Invoke-NativeCommand -FilePath 'takeown.exe' -ArgumentList @('/F', $installWim) | Out-Null
@@ -434,10 +453,10 @@ try {
     Write-Output "Image: $($imageMetadata.ImageName); architecture: $architecture; version: $($imageMetadata.Version)"
     $imageVersion = [version]$imageMetadata.Version
     if ($architecture -ne 'amd64') {
-        throw "The deployment/2026-25h2 profile is qualified only for x64 media; found $architecture."
+        throw "The deployment/2026-26h2 profile is qualified only for x64 media; found $architecture."
     }
-    if ($imageVersion.Major -ne 10 -or $imageVersion.Minor -ne 0 -or $imageVersion.Build -ne 26200) {
-        throw "The deployment/2026-25h2 profile requires Windows 11 25H2 build 26200.x; found $imageVersion."
+    if ($imageVersion.Major -ne 10 -or $imageVersion.Minor -ne 0 -or $imageVersion.Build -ne 26300) {
+        throw "The deployment/2026-26h2 profile requires Windows 11 26H2 build 26300.x; found $imageVersion."
     }
     Assert-AnswerFile -Path $AnswerFilePath -Architecture $architecture
 

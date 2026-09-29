@@ -17,7 +17,7 @@ been proven. It contains no credentials, product keys, or recovery secrets.
 2. Download Windows only from Microsoft. Record the source URL, retrieval time,
    published hash when available, and locally computed SHA-256.
 3. Use `https://github.com/pi0n00r/tiny11builder`, branch
-   `deployment/2026-25h2`, pinned to an explicit commit. Never build from a
+   `deployment/2026-26h2`, pinned to an explicit commit. Never build from a
    mutable branch tip or an unversioned ZIP.
 4. Determine release, edition, locale, and architecture from mounted-media
    contents. A filename is not evidence.
@@ -134,8 +134,10 @@ Get-WindowsImage -ImagePath $InstallImage |
 
 5. Record the ISO volume label, EFI marker, image index, image name, reported
    architecture, build/version, and locale in the receipt.
-6. For this deployment profile, require x64 Windows 11 25H2 version
-   `10.0.26200.x`. Reject another build family even if its filename says 25H2.
+6. For this deployment profile, require x64 Windows 11 Pro 26H2 version
+   `10.0.26300.x`. Reject another build family even if its filename says 26H2.
+   A 26H2 Windows Update offer is not proof that a downloaded ISO contains
+   26H2. Record whether the Microsoft source is public or Insider media.
 7. Dismount the source after inspection:
 
 ```powershell
@@ -149,14 +151,14 @@ content-derived facts are recorded.
 
 1. Use the fleet fork only:
    `https://github.com/pi0n00r/tiny11builder`.
-2. Fetch branch `deployment/2026-25h2`, resolve its commit, and check out
+2. Fetch branch `deployment/2026-26h2`, resolve its commit, and check out
    that detached commit. Record the branch, commit, archive URL when used, and
    archive SHA-256. A branch name by itself is not a pin.
 3. Verify that the pinned commit descends from hardened baseline commit
    `b87486a608805fd8e58e0c734b0576d0ea429c4d`.
 4. Keep one pristine checkout or commit archive and make a separate disposable
    run copy.
-5. Read `docs/deployment-2026-25h2.md`. Hash at least `tiny11maker.ps1`,
+5. Read `docs/deployment-2026-26h2.md`. Hash at least `tiny11maker.ps1`,
    `autounattend.xml`, the profile document, the static test, and the commit
    archive when an archive is used.
 6. Run the repository static checks before building:
@@ -241,7 +243,9 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 4. Use different drive letters for mounted source and scratch. Scratch must be
    a fixed local NTFS volume. The script enforces 40 GiB free; 80 GiB is the
    operational recommendation.
-5. Run the regular builder with an explicit image index and output path:
+5. Run the regular builder with the **observed** Pro image index and an explicit
+   output path. The value below is an example from the 25H2 source; re-enumerate
+   the 26H2 source and replace it if necessary:
 
 ```powershell
 .\tiny11maker.ps1 `
@@ -251,7 +255,9 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
     -OutputPath 'C:\Builds\tiny11\output\tiny11-candidate.iso'
 ```
 
-6. Record the selected image index and SKU. The regular deployment builder has
+6. The builder checks the selected source image, x64 EFI marker, answer file,
+   Pro edition, and `26300` build family before copying it to scratch. Record
+   the selected image index and SKU. The regular deployment builder has
    no .NET 3.5 prompt.
 7. Let the pinned builder finish. Do not interrupt it because a stage appears to
    pause, and do not run a second builder against the same scratch directory.
@@ -289,7 +295,8 @@ Install the candidate in a disposable UEFI VM of the matching architecture.
 The VM pass requires:
 
 1. Boot from ISO and complete setup without modifying the image.
-2. OOBE permits the intended local-account path.
+2. OOBE permits the intended local-account path. The inherited `BypassNRO`
+   value and unattended settings are hypotheses on 26H2 until this VM test passes.
 3. The installed edition, build, locale, and architecture match the receipt.
 4. Device Manager has no unexplained unknown or failed devices.
 5. Windows servicing remains functional: updates can scan/install and optional
@@ -360,7 +367,7 @@ source:
   efi_marker: null
 builder:
   repository: https://github.com/pi0n00r/tiny11builder
-  branch: deployment/2026-25h2
+  branch: deployment/2026-26h2
   commit: null
   hardened_baseline: b87486a608805fd8e58e0c734b0576d0ea429c4d
   upstream_baseline: 00e7d8a151a39ccffccab4a267bb81fb3756a01d
@@ -372,11 +379,11 @@ builder:
   psscriptanalyzer_version: 1.25.0
   adk_version: null
 profile:
-  id: deployment/2026-25h2
+  id: deployment/2026-26h2
   script: tiny11maker.ps1
   serviceable: true
   architecture: amd64
-  source_build_family: 26200
+  source_build_family: 26300
   scratch_is_local: true
   image_index_explicit: true
   package_inventory_captured: false
@@ -425,7 +432,7 @@ target soak and the recovery image has been verified.
 
 ## 13. Deployment profile lineage
 
-Branch `deployment/2026-25h2` carries forward only the recoverable intent of the
+Branch `deployment/2026-26h2` carries forward only the recoverable intent of the
 May 2024 template:
 
 - regular, serviceable tiny11 rather than tiny11 Core;
@@ -436,10 +443,12 @@ May 2024 template:
 - no driver injection unless a setup-critical need is proven;
 - edition and image index selected explicitly from the current Microsoft source.
 
-The branch is general-purpose rather than accounts-specific. Its exact 25H2
+The branch is general-purpose rather than accounts-specific. Its exact 26H2
 package policy, preserved components, discontinued identifiers, CRA/TurboTax
 gate, and NVMe settings are authoritative in
-`docs/deployment-2026-25h2.md`.
+`docs/deployment-2026-26h2.md`. The 25H2 receipt remains a candidate because
+VM and target acceptance were not recorded; it is a reproducible build
+reference, not a qualified 26H2 installation baseline.
 
 Evidence baseline:
 

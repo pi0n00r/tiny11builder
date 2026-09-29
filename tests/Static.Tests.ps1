@@ -1,10 +1,13 @@
 [CmdletBinding()]
 param (
-    [string]$RepositoryRoot = (Split-Path -Path $PSScriptRoot -Parent)
+    [string]$RepositoryRoot
 )
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
+if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
+    $RepositoryRoot = Split-Path -Path $PSScriptRoot -Parent
+}
 
 function Assert-Condition {
     [CmdletBinding()]
@@ -136,7 +139,7 @@ $packagePolicyDifference = @(
     Compare-Object -ReferenceObject $expectedPackagePrefixes -DifferenceObject $packagePrefixes
 )
 Assert-Condition -Condition ($packagePolicyDifference.Count -eq 0) -Message (
-    'The deployment/2026-25h2 package policy differs from the reviewed set: ' +
+    'The deployment/2026-26h2 package policy differs from the reviewed set: ' +
     (($packagePolicyDifference | ForEach-Object { "$($_.SideIndicator)$($_.InputObject)" }) -join ', ')
 )
 
@@ -195,8 +198,13 @@ Assert-Condition -Condition ($retainedStalePrefixes.Count -eq 0) -Message (
     "Discontinued package identifiers remain in the 2026 profile: $($retainedStalePrefixes -join ', ')"
 )
 
-Assert-Condition -Condition ($makerSource -match "Build\s+-ne\s+26200") -Message (
-    'The deployment builder must reject source media outside Windows 11 25H2 build 26200.x.'
+Assert-Condition -Condition ($makerSource -match "Build\s+-ne\s+26300") -Message (
+    'The deployment builder must reject source media outside Windows 11 26H2 build 26300.x.'
+)
+$sourceGatePosition = $makerSource.IndexOf('requires Windows 11 Pro x64 build 26300.x')
+$sourceCopyPosition = $makerSource.IndexOf('Copying Windows source media')
+Assert-Condition -Condition ($sourceGatePosition -ge 0 -and $sourceCopyPosition -gt $sourceGatePosition) -Message (
+    'The 26H2 source gate must run before copying source media to scratch.'
 )
 Assert-Condition -Condition ($makerSource -match 'function\s+Get-OfflineDefaultControlSetName') -Message (
     'The deployment builder must resolve the offline default control set.'
