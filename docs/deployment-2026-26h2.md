@@ -9,9 +9,9 @@ not an accounts-only image. TurboTax Business Incorporated and CRA Corporation
 Internet Filing are required compatibility workloads because the 2024 appliance
 did not preserve their supported browser shape.
 
-Prepared: 2026-09-29 America/Toronto. Source-media inventory and VM acceptance
-are pending; this profile must not be called qualified on the strength of static
-checks alone.
+Prepared: 2026-09-29 America/Toronto. Source-media inventory is complete;
+image build and VM acceptance are pending. This profile must not be called
+qualified on the strength of static checks alone.
 
 ## Source gate
 
@@ -23,14 +23,16 @@ The builder accepts only:
 - official Microsoft installation media with recorded provenance and SHA-256.
 
 Microsoft delivered 26H2 to Release Preview as an enablement package on
-2026-08-27 and made Insider ISOs available on 2026-08-31. A Windows Update
-offer on an existing 25H2 machine does not itself prove that Microsoft's public
-multi-edition ISO has changed. On 2026-09-29, that download page still labels
-25H2 as its current ISO. Obtain a 26H2 ISO from Microsoft, record whether it is
-public or Insider media, and inspect the selected image before copying the
-multi-gigabyte source to scratch. An Insider source remains a preview candidate;
-do not use it to replace a production LKG without explicit target qualification.
-Do not relabel a 25H2 ISO as 26H2 or loosen the `26300` guard to accept it.
+2026-08-27 and made Insider ISOs available on 2026-08-31. On 2026-09-29, the
+public ISO download page still labeled 25H2, but Microsoft's Media Creation
+Tool at <https://go.microsoft.com/fwlink/?linkid=2156295> generated
+`Windows.iso` with Windows 11 Pro x64 `10.0.26300.9457` at index 6. The exact
+source hash, size, and acquisition route are recorded in
+`tiny11-build-20260929-26h2-attempt-receipt.yaml` in the shared ISO store.
+Inspect the selected image on every new acquisition because the tool's output
+can change. Do not relabel a 25H2 ISO as 26H2 or loosen the `26300` guard.
+An Insider source remains a preview candidate and cannot replace a production
+LKG without target qualification.
 
 References:
 

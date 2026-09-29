@@ -98,8 +98,9 @@ VM or hardware test proves that this is necessary.
 
 ## 4. Stage B: acquire and prove the Microsoft source
 
-1. Download the desired current Windows 11 ISO from Microsoft's official
-   software-download surface.
+1. Obtain the desired Windows 11 ISO from Microsoft's official download page
+   or Media Creation Tool. Record the exact acquisition route; a tool-generated
+   ISO has no stable direct ISO URL.
 2. Compute its hash immediately:
 
 ```powershell
@@ -244,8 +245,8 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
    a fixed local NTFS volume. The script enforces 40 GiB free; 80 GiB is the
    operational recommendation.
 5. Run the regular builder with the **observed** Pro image index and an explicit
-   output path. The value below is an example from the 25H2 source; re-enumerate
-   the 26H2 source and replace it if necessary:
+   output path. Microsoft's Media Creation Tool source captured on 2026-09-29
+   reports Pro at index 6, build `26300.9457`. Re-enumerate any later source.
 
 ```powershell
 .\tiny11maker.ps1 `
