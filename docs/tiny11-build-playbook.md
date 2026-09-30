@@ -270,6 +270,18 @@ The hardened builder downloads nothing, does not delete `autounattend.xml` or
 `oscdimg.exe`, refuses to overwrite output or stale scratch, and retains failed
 scratch evidence for diagnosis.
 
+**Native-tool failure lesson (25H2 and 26H2).** The 2026-09-25 25H2 transcript
+ended at `oscdimg.exe` with a PowerShell `RemoteException`. The first 26H2 run
+repeated that failure and left a 6.45 GB ISO that Windows could not mount.
+Windows PowerShell 5.1 can promote native stderr output to a terminating error
+under `$ErrorActionPreference = 'Stop'` before the tool's exit code is read.
+The builder now captures stderr without treating it as process failure and
+checks the actual exit code. If packaging fails, preserve the edited scratch
+tree; run the reviewed, Microsoft-signed `oscdimg.exe` against it to a **new**
+output name, capture stdout/stderr and exit code, then mount and inspect the
+result. An ISO's plausible size alone is not evidence of completion. Never
+repeat the expensive image-editing stages merely to recover packaging.
+
 ## 8. Stage F: seal and statically validate the output
 
 1. Rename the output ISO using content-derived facts and the canonical template.
@@ -309,8 +321,11 @@ The VM pass requires:
 9. Edge, Edge Update, and WebView2 remain installed and serviced.
 10. Microsoft Store, Desktop App Installer, Windows Terminal, Windows Security,
     and the other protected packages remain present.
-11. The three NVMe feature overrides read back as `REG_DWORD 1` from the live
-    `CurrentControlSet`.
+11. For builds that include the three experimental NVMe feature overrides,
+    they read back as `REG_DWORD 1` from the live `CurrentControlSet`. This
+    checks the registry write only. Booklette's 26H2 build 26300.9457 has all
+    three set and still uses `stornvme`; inspect the actual controller and disk
+    stack before making any Native NVMe claim.
 
 Any failure creates a rejected build receipt. Do not repair the only copy in
 place; fix the input or documented profile and generate a new build ID.

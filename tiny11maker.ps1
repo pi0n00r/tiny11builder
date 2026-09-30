@@ -80,8 +80,18 @@ function Invoke-NativeCommand {
         [switch]$CaptureOutput
     )
 
-    $commandOutput = & $FilePath @ArgumentList 2>&1
-    $exitCode = $LASTEXITCODE
+    # Windows PowerShell 5.1 turns a native program's stderr into an error
+    # record. With Stop, harmless oscdimg progress output aborts the build
+    # before its actual process exit code can be checked.
+    $null = Get-Command -Name $FilePath -ErrorAction Stop
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $commandOutput = @(& $FilePath @ArgumentList 2>&1 | ForEach-Object { $_.ToString() })
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
 
     if ($CaptureOutput) {
         $commandOutput

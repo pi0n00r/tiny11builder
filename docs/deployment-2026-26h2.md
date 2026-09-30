@@ -208,9 +208,26 @@ An offline SYSTEM hive does not expose `CurrentControlSet` as a live alias. The
 builder reads `SYSTEM\Select\Default`, validates that control set, and writes
 the values there. It does not assume `ControlSet001`.
 
-These values select a Windows feature path. They are not storage-driver
-injection and do not make an otherwise invisible setup controller visible.
-Their effect on 26H2 is unqualified. Read them back and verify the active
+These are undocumented Windows-client feature overrides, not storage-driver
+injection. **They did not enable the native NVMe path on Booklette's 26H2
+build 26300.9457.** On 2026-09-29, all three read back as `1` on that live
+machine, and `nvmedisk.sys` existed, but its `Standard NVM Express Controller`
+still used Microsoft `stornvme.inf` / service `stornvme` (driver
+`10.0.26100.9278`). The 26H2 candidate ISO's `install.wim` SYSTEM hive also
+contained all three under its selected default `ControlSet001`. Thus registry
+presence proves only that the writes succeeded; it does not prove activation.
+The observation is for this hardware and build, not a claim that every 26H2
+installation behaves identically.
+
+Microsoft's published Native NVMe opt-in is for **Windows Server 2025** and
+uses a different feature ID, `1176759950`; it is not a Windows 11 26H2
+qualification for these three IDs. The 26H2 candidate retains the historic
+overrides as an experimental carry-over, but must not be represented as having
+Native NVMe enabled. Before target promotion, verify the actual controller
+and disk stack and decide whether to omit the three overrides in a subsequent
+build. Source: https://techcommunity.microsoft.com/blog/windowsservernewsandbestpractices/announcing-native-nvme-in-windows-server-2025-ushering-in-a-new-era-of-storage-p/4477353
+
+Read the keys back and verify the active
 controller in the target test; do not infer a driver change from the values.
 After installation and reboot, read back the values and record the active NVMe
 controller, provider, driver version, INF, binary, and Device Manager status.
