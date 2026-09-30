@@ -623,7 +623,7 @@ try {
     Write-OfflineRegistryValue -Path 'HKLM\zSOFTWARE\Policies\Microsoft\Windows\OneDrive' -Name 'DisableFileSyncNGSC' -Type 'REG_DWORD' -Value '1'
 
     $nvmeOverridePath = "HKLM\zSYSTEM\$offlineControlSetName\Policies\Microsoft\FeatureManagement\Overrides"
-    foreach ($nvmeOverrideId in @('735209102', '1853569164', '156965516')) {
+    foreach ($nvmeOverrideId in @('735209102', '1853569164', '156965516', '3244671118')) {
         Write-OfflineRegistryValue -Path $nvmeOverridePath -Name $nvmeOverrideId -Type 'REG_DWORD' -Value '1'
     }
 

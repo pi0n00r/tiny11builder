@@ -11,12 +11,14 @@
 
 ## Fleet deployment branch
 
-Branch `deployment/2026-25h2` is the controlled general-purpose x64 deployment
-lane. It accepts only Windows 11 25H2 build `26200.x`, preserves Edge and
-WebView2, and applies the three reviewed NVMe feature overrides. It carries
+Branch `deployment/2026-26h2` is the controlled general-purpose x64 deployment
+lane. It accepts only Windows 11 26H2 build `26300.x`, preserves Edge and
+WebView2, and applies four NVMe feature overrides. The fourth was proven to
+bind Booklette's physical NVMe disk to Microsoft's `nvmedisk.inf` in an isolated
+native-boot test; full installation and servicing remain separate gates. It carries
 forward only current, confirmed removals from the archived May 2024 template;
 it does not reuse the old script or any historical ISO. Review the
-[Windows 11 25H2 Deployment Profile](docs/deployment-2026-25h2.md), follow the
+[Windows 11 26H2 Deployment Profile](docs/deployment-2026-26h2.md), follow the
 [Tiny11 Universal Build and Recovery Playbook](docs/tiny11-build-playbook.md),
 and pin an exact deployment commit for every build.
 

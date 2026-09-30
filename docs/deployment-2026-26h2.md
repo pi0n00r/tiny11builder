@@ -9,9 +9,10 @@ not an accounts-only image. TurboTax Business Incorporated and CRA Corporation
 Internet Filing are required compatibility workloads because the 2024 appliance
 did not preserve their supported browser shape.
 
-Prepared: 2026-09-29 America/Toronto. Source-media inventory is complete;
-image build and VM acceptance are pending. This profile must not be called
-qualified on the strength of static checks alone.
+Prepared: 2026-09-29 America/Toronto. A second candidate ISO containing all
+four NVMe overrides has been built and its embedded WIM checked. VM acceptance
+is pending. This profile must not be called qualified on the strength of static
+checks or the isolated driver-binding probe alone.
 
 ## Source gate
 
@@ -204,6 +205,9 @@ HKLM\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides
   156965516  REG_DWORD  1
 ```
 
+The 26H2 builder now also writes `3244671118 REG_DWORD 1` (feature
+`60786016`), proven by the isolated Booklette test below.
+
 An offline SYSTEM hive does not expose `CurrentControlSet` as a live alias. The
 builder reads `SYSTEM\Select\Default`, validates that control set, and writes
 the values there. It does not assume `ControlSet001`.
@@ -213,19 +217,40 @@ injection. **They did not enable the native NVMe path on Booklette's 26H2
 build 26300.9457.** On 2026-09-29, all three read back as `1` on that live
 machine, and `nvmedisk.sys` existed, but its `Standard NVM Express Controller`
 still used Microsoft `stornvme.inf` / service `stornvme` (driver
-`10.0.26100.9278`). The 26H2 candidate ISO's `install.wim` SYSTEM hive also
-contained all three under its selected default `ControlSet001`. Thus registry
-presence proves only that the writes succeeded; it does not prove activation.
+`10.0.26100.9278`). The first 26H2 candidate ISO's `install.wim` SYSTEM hive
+also contained only those three under its selected default `ControlSet001`. This PC,
+still on 25H2 build 26200.9457, has the same three flags but its Samsung boot
+disk is now `DiskDrive` using `disk.inf`, with an NVMe controller using
+`stornvme.inf`. The loss of native binding therefore predates this 26H2 image
+on at least one target. Registry presence proves only that the writes succeeded.
 The observation is for this hardware and build, not a claim that every 26H2
 installation behaves identically.
 
 Microsoft's published Native NVMe opt-in is for **Windows Server 2025** and
 uses a different feature ID, `1176759950`; it is not a Windows 11 26H2
-qualification for these three IDs. The 26H2 candidate retains the historic
-overrides as an experimental carry-over, but must not be represented as having
-Native NVMe enabled. Before target promotion, verify the actual controller
-and disk stack and decide whether to omit the three overrides in a subsequent
-build. Source: https://techcommunity.microsoft.com/blog/windowsservernewsandbestpractices/announcing-native-nvme-in-windows-server-2025-ushering-in-a-new-era-of-storage-p/4477353
+qualification for these client IDs. **Native binding is a required target
+promotion gate for this deployment.** The first candidate is blocked at this
+gate. On 2026-09-29, an isolated native-boot VHDX on Booklette added the fourth
+override `3244671118=1` to the three above. Its physical SSSTC disk then
+enumerated as class `NvmeDisk`, instance `NVME\NVMEDISK...`, with Microsoft
+`nvmedisk.inf` version `10.0.26100.8972`. The VHD itself remained a virtual
+`disk.inf` device. The specialize pass captured this result and restarted;
+the machine subsequently entered recovery during setup, so a normal completed
+installation and reboot are still unqualified. No production OS was changed.
+
+The fourth override maps to feature `60786016`, reported effective by a
+firsthand tester on 26200.8116. Our physical-hardware test qualifies native
+binding on Booklette 26300.9457, not future servicing or stable full setup.
+The second candidate ISO, `tiny11-26h2-pro-en-us-x64-native-nvme4-20260929.iso`,
+contains a clean exported one-index Pro WIM. The WIM passed full file-data
+verification; the extracted SYSTEM hive contains all four overrides at `1` in
+ControlSet001. The mounted ISO's embedded WIM SHA-256 matched the verified
+source WIM, and both BIOS and UEFI boot files were present. This validates the
+artifact contents, not a completed installer run.
+Read back the actual driver on each target after installation. Sources:
+https://forums.mydigitallife.net/threads/discussion-windows-11-26x00-native-nvme-driver-discussion.89933/page-11
+and
+https://techcommunity.microsoft.com/blog/windowsservernewsandbestpractices/announcing-native-nvme-in-windows-server-2025-ushering-in-a-new-era-of-storage-p/4477353
 
 Read the keys back and verify the active
 controller in the target test; do not infer a driver change from the values.
@@ -235,7 +260,7 @@ controller, provider, driver version, INF, binary, and Device Manager status.
 ```powershell
 $Path = 'HKLM:\SYSTEM\CurrentControlSet\Policies\Microsoft\FeatureManagement\Overrides'
 Get-ItemProperty -LiteralPath $Path |
-    Select-Object '735209102', '1853569164', '156965516'
+    Select-Object '735209102', '1853569164', '156965516', '3244671118'
 
 Get-CimInstance Win32_PnPSignedDriver |
     Where-Object DeviceClass -eq 'SCSIAdapter' |
@@ -254,7 +279,7 @@ The build transcript is part of the receipt and must include:
 - exact package names removed;
 - Edge and WebView preservation checks;
 - resolved offline default control set;
-- all three NVMe registry writes;
+- all four NVMe registry writes;
 - successful DISM save/export and ISO creation.
 
 Add these profile fields to the build receipt:

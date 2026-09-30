@@ -321,11 +321,13 @@ The VM pass requires:
 9. Edge, Edge Update, and WebView2 remain installed and serviced.
 10. Microsoft Store, Desktop App Installer, Windows Terminal, Windows Security,
     and the other protected packages remain present.
-11. For builds that include the three experimental NVMe feature overrides,
-    they read back as `REG_DWORD 1` from the live `CurrentControlSet`. This
-    checks the registry write only. Booklette's 26H2 build 26300.9457 has all
-    three set and still uses `stornvme`; inspect the actual controller and disk
-    stack before making any Native NVMe claim.
+11. For builds that include experimental NVMe feature overrides, they read
+    back as `REG_DWORD 1` from the live `CurrentControlSet`. The 26H2 profile
+    now writes four, including `3244671118` for feature `60786016`. This
+    checks the registry write only. Booklette's 26H2 build 26300.9457 kept
+    the legacy disk binding with the older three; an isolated native-boot
+    VHDX with the fourth enumerated its physical disk as `NvmeDisk` using
+    `nvmedisk.inf`. Verify real binding on the installed target after setup.
 
 Any failure creates a rejected build receipt. Do not repair the only copy in
 place; fix the input or documented profile and generate a new build ID.

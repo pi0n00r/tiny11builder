@@ -212,7 +212,7 @@ Assert-Condition -Condition ($makerSource -match 'function\s+Get-OfflineDefaultC
 Assert-Condition -Condition ($makerSource -notmatch 'zSYSTEM\\ControlSet001') -Message (
     'The deployment builder must not assume that ControlSet001 is the offline default.'
 )
-foreach ($nvmeOverrideId in @('735209102', '1853569164', '156965516')) {
+foreach ($nvmeOverrideId in @('735209102', '1853569164', '156965516', '3244671118')) {
     Assert-Condition -Condition ($makerSource -match [regex]::Escape("'$nvmeOverrideId'")) -Message (
         "Required NVMe feature override is absent: $nvmeOverrideId"
     )
